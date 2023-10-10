@@ -2,16 +2,30 @@ import vecs
 import os
 import io
 import timm
-from PIL import Image
+import PIL.Image
 from fastapi import FastAPI, UploadFile
-from fastapi.responses import HTMLResponse, FileResponse
-from matplotlib import pyplot as plt, image as mpimg
+from fastapi.responses import HTMLResponse
+from matplotlib import pyplot as plt
+from storage3 import create_client
+import requests
+from pydantic import BaseModel
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 
 DB_CONNECTION =  os.environ.get("DB_URL", "postgresql://postgres:postgres@localhost:54322/postgres")
 COLLECTION_NAME = "images"
-IMAGES_PATH = "../images/"
+
+SUPABASE_ID = os.environ.get("SUPABASE_ID", "")
+STORAGE_URL = f"https://{SUPABASE_ID}.supabase.co/storage/v1"
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+
+print(SUPABASE_KEY, DB_CONNECTION)
+
+headers = {"apiKey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+storage_client = create_client(STORAGE_URL, headers, is_async=False)
 
 vx = vecs.create_client(DB_CONNECTION)
 images = vx.get_or_create_collection(name=COLLECTION_NAME, dimension=1536)
@@ -27,17 +41,22 @@ def seed():
     data_config = timm.data.resolve_model_data_config(model)
     transforms = timm.data.create_transform(**data_config, is_training=True)
 
-    contents = os.listdir(IMAGES_PATH)
-    for content in contents:
-        output = model(transforms(Image.open(IMAGES_PATH + content).convert('RGB')).unsqueeze(0))
+    files = storage_client.from_("images").list()
+
+    for file in files:
+        image_url = storage_client.from_("images").get_public_url(file.get("name"))
+        response = requests.get(image_url)
+        image = PIL.Image.open(io.BytesIO(response.content)).convert("RGB")
+
+        output = model(transforms(image).unsqueeze(0))
         img_emb = output[0].detach().numpy()
 
         images.upsert(
             [
                 (
-                    content,        
+                    file.get("name"),        
                     img_emb,         
-                    {"type": "png"}   
+                    {"url": image_url}   
                 )
             ]
         )
@@ -67,13 +86,15 @@ def get_results(image):
 
     results = images.query(
         img_emb,
+        limit=3,
         include_value = True,
+        include_metadata = True,
     )
 
     return results
 
-def plot_results(results):
-    image = Image.open(IMAGES_PATH + 'test.png')
+def plot_results():
+    image = PIL.Image.open("./images/test-image.jpg")
     results = get_results(image)
 
     print(results)
@@ -82,8 +103,9 @@ def plot_results(results):
     fig = plt.figure(figsize=(10, 10)) 
 
     for i in range(0, results.__len__()):
-        name, score = results[i]
-        image = mpimg.imread('./images/' + name)
+        name, score, metadata = results[i]
+        response = requests.get(metadata.get("url"))
+        image = PIL.Image.open(io.BytesIO(response.content))
         fig.add_subplot(rows, columns, i + 1) 
   
         plt.imshow(image) 
@@ -92,12 +114,21 @@ def plot_results(results):
 
     plt.show()
 
-@app.post("/search/")
-def search(file: UploadFile):
-    contents = file.file.read()
+class Image(BaseModel):
+    name: str
+    score: float
+    url: str
 
-    image = Image.open(io.BytesIO(contents))
+@app.post("/search/")
+def search(file: UploadFile) -> list[Image]:
+    contents = file.file.read()
+    image = PIL.Image.open(io.BytesIO(contents))
+
     results = get_results(image)
 
-    return FileResponse(IMAGES_PATH + results[0][0], media_type="image/png")
+    images = []
+    for name, score, metadata in results:
+        images.append(Image(name=name, score=score, url=metadata.get("url")))
+
+    return images
 
