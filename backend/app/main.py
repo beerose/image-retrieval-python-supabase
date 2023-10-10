@@ -9,12 +9,12 @@ from matplotlib import pyplot as plt, image as mpimg
 
 app = FastAPI()
 
-DB_CONNECTION = "postgresql://postgres:postgres@localhost:54322/postgres"
-COLLECTION_NAME = "vectors_11"
+DB_CONNECTION =  os.environ.get("DB_URL", "postgresql://postgres:postgres@localhost:54322/postgres")
+COLLECTION_NAME = "images"
 IMAGES_PATH = "../images/"
 
 vx = vecs.create_client(DB_CONNECTION)
-images = vx.get_collection(name=COLLECTION_NAME)
+images = vx.get_or_create_collection(name=COLLECTION_NAME, dimension=1536)
 
 model = timm.create_model(
     'inception_resnet_v2.tf_in1k',
