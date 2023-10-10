@@ -22,8 +22,6 @@ SUPABASE_ID = os.environ.get("SUPABASE_ID", "")
 STORAGE_URL = f"https://{SUPABASE_ID}.supabase.co/storage/v1"
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
-print(SUPABASE_KEY, DB_CONNECTION)
-
 headers = {"apiKey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
 storage_client = create_client(STORAGE_URL, headers, is_async=False)
 
