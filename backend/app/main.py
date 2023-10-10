@@ -94,20 +94,21 @@ def plot_results():
     image = PIL.Image.open("./images/test-image.jpg")
     results = get_results(image)
 
-    print(results)
     columns = 3
     rows = results.__len__() // columns + 1
     fig = plt.figure(figsize=(10, 10)) 
 
     for i in range(0, results.__len__()):
-        name, score, metadata = results[i]
+        _, score, metadata = results[i]
+        if (score > 0.5):
+            continue
         response = requests.get(metadata.get("url"))
         image = PIL.Image.open(io.BytesIO(response.content))
         fig.add_subplot(rows, columns, i + 1) 
   
         plt.imshow(image) 
         plt.axis('off')
-        plt.title(f"Caption: {name}\nSimilarity: {1 - score:.2f}")
+        plt.title(f"Similarity: {1 - score:.2f}")
 
     plt.show()
 
