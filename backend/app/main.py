@@ -84,7 +84,6 @@ def get_results(image):
 
     results = images.query(
         img_emb,
-        limit=3,
         include_value = True,
         include_metadata = True,
     )
