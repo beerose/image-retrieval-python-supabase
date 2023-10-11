@@ -13,8 +13,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-app = FastAPI()
-
 DB_CONNECTION =  os.environ.get("DB_URL", "postgresql://postgres:postgres@localhost:54322/postgres")
 COLLECTION_NAME = "images"
 
@@ -111,6 +109,8 @@ def plot_results():
         plt.title(f"Similarity: {1 - score:.2f}")
 
     plt.show()
+
+app = FastAPI()
 
 class Image(BaseModel):
     name: str
